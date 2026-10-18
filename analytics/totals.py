@@ -1,13 +1,26 @@
+from datetime import timedelta
+
 import pandas as pd
+
+from db.nutrients import COLUMN, KEYS
 from db.queries import get_logs_with_foods
 
 
-def get_daily_totals():
+def _nutrient_values(food, factor):
+    """Scale every registry nutrient from per-100g to the logged amount.
+
+    A missing/NULL column contributes 0 so sums stay numeric; use the foods
+    table itself if you need to tell "not known" apart from a real zero.
+    """
+    return {key: factor * (food.get(COLUMN[key]) or 0) for key in KEYS}
+
+
+def _log_rows(include_food_name):
     response = get_logs_with_foods()
     data = response.data
 
     if not data:
-        return pd.DataFrame()
+        return []
 
     rows = []
 
@@ -16,13 +29,11 @@ def get_daily_totals():
         if not food:
             continue
 
-        # --- date ---
         date_val = log.get("date")
         if not date_val:
             continue
         date_val = pd.to_datetime(date_val).date()
 
-        # --- grams ---
         try:
             grams = float(log.get("grams", 0))
         except (TypeError, ValueError):
@@ -31,24 +42,22 @@ def get_daily_totals():
         if grams <= 0:
             continue
 
-        factor = grams / 100.0
+        row = {"date": date_val}
+        if include_food_name:
+            row["food"] = food["name"]
+            row["grams"] = grams
+        row.update(_nutrient_values(food, grams / 100.0))
+        rows.append(row)
 
-        rows.append({
-            "date": date_val,
-            "calories": factor * food["calories_per_100g"],
-            "protein": factor * food["protein_per_100g"],
-            "fiber": factor * (food["fiber_per_100g"] or 0),
-            "carbs": factor * food["carbohydrates_per_100g"],
-            "fat": factor * food["fat_per_100g"],
-            "bad_fat": factor * (food["bad_fat_per_100g"] or 0),
-            "sugar": factor * (food["sugar_per_100g"] or 0),
-        })
+    return rows
+
+
+def get_daily_totals():
+    rows = _log_rows(include_food_name=False)
+    if not rows:
+        return pd.DataFrame()
 
     df = pd.DataFrame(rows)
-
-    if df.empty:
-        return df
-
     return (
         df.groupby("date", as_index=False)
           .sum()
@@ -57,50 +66,12 @@ def get_daily_totals():
 
 
 def get_detailed_logs():
-    response = get_logs_with_foods()
-    data = response.data
-
-    if not data:
+    rows = _log_rows(include_food_name=True)
+    if not rows:
         return pd.DataFrame()
-
-    rows = []
-
-    for log in data:
-        food = log.get("foods")
-        if not food:
-            continue
-
-        date_val = log.get("date")
-        if not date_val:
-            continue
-        date_val = pd.to_datetime(date_val).date()
-
-        try:
-            grams = float(log.get("grams", 0))
-        except (TypeError, ValueError):
-            continue
-
-        if grams <= 0:
-            continue
-
-        factor = grams / 100.0
-
-        rows.append({
-            "date": date_val,
-            "food": food["name"],  # ✅ FOOD NAME SHOWN
-            "grams": grams,
-            "calories": factor * food["calories_per_100g"],
-            "protein": factor * food["protein_per_100g"],
-            "fiber": factor * (food["fiber_per_100g"] or 0),
-            "carbs": factor * food["carbohydrates_per_100g"],
-            "fat": factor * food["fat_per_100g"],
-            "bad_fat": factor * (food["bad_fat_per_100g"] or 0),
-            "sugar": factor * (food["sugar_per_100g"] or 0),
-        })
 
     return pd.DataFrame(rows).sort_values(["date", "food"])
 
-from datetime import date, timedelta
 
 def get_daily_totals_for_date(target_date):
     df = get_daily_totals()
