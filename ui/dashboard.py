@@ -18,25 +18,41 @@ SHOW_FULL_FORM = "show_full_form"
 
 def render_dashboard():
     inject()
+    tab = st.session_state.get(NAV_KEY, "Log")
+    if tab not in ("Log", "Settings"):
+        tab = "Log"
 
-    tab = st.segmented_control(
-        "Section",
-        ["Log", "Settings"],
-        default="Log",
-        key=NAV_KEY,
-        label_visibility="collapsed",
-    )
+    with st.container(key="ctheader"):
+        date_column, nav_column = st.columns([0.95, 1.05], vertical_alignment="center")
+        with date_column:
+            selected_date = render_date_bar()
+        with nav_column:
+            log_column, settings_column = st.columns(2, gap="small")
+            if log_column.button(
+                "Log",
+                type="primary" if tab == "Log" else "secondary",
+                key="nav_log",
+                use_container_width=True,
+            ):
+                st.session_state[NAV_KEY] = "Log"
+                st.rerun()
+            if settings_column.button(
+                "Settings",
+                type="primary" if tab == "Settings" else "secondary",
+                key="nav_settings",
+                use_container_width=True,
+            ):
+                st.session_state[NAV_KEY] = "Settings"
+                st.rerun()
 
     if tab == "Settings":
         render_settings()
         return
 
-    render_log_section()
+    render_log_section(selected_date)
 
 
-def render_log_section():
-    selected_date = render_date_bar()
-
+def render_log_section(selected_date):
     if st.session_state.get(SHOW_FULL_FORM):
         if st.button("← Back", use_container_width=True):
             st.session_state[SHOW_FULL_FORM] = False

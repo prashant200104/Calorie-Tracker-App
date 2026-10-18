@@ -16,7 +16,7 @@ from services.recipes import item_grams, log_recipe, sorted_items
 from services.suggestions import build_suggestions
 from ui.nutrition_preview import pretty, show_preview
 
-COLUMNS = 3
+COLUMNS = 2
 TARGET_KEY = "quick_log_target"
 
 
@@ -67,9 +67,7 @@ def render_quick_log(selected_date, limit=None):
 def _render_tile(item, selected_date):
     amount = f"{item['default_quantity']:g} {item['unit_name']}"
     suffix = " · meal" if item["kind"] == "recipe" else ""
-    note = "" if item["times"] else " · new"
-
-    label = f"{pretty(item['label'])}\n\n{amount}{suffix}{note}"
+    label = pretty(item["label"])
 
     if st.button(
         label,

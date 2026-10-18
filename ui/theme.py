@@ -55,8 +55,29 @@ CSS = """
 
 /* tighter gutters: this is used one-handed on a phone */
 .block-container { padding-top: 2.2rem !important; padding-bottom: 4rem !important; }
+div[class*="st-key-ctheader"] { margin-top: 1rem; }
+div[class*="st-key-nav_section"] { margin-top: 0; width: 100%; }
+div[class*="st-key-nav_log"] button,
+div[class*="st-key-nav_settings"] button {
+  white-space: nowrap;
+  padding-left: .25rem !important;
+  padding-right: .25rem !important;
+  font-size: .82rem;
+}
 @media (max-width: 640px) {
   .block-container { padding-left: 1rem !important; padding-right: 1rem !important; }
+  [class*="st-key-ctheader"] [data-testid="stHorizontalBlock"] {
+    display: grid !important;
+    grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr) !important;
+    align-items: center;
+    gap: .5rem !important;
+  }
+  [class*="st-key-ctheader"] [data-testid="stColumn"] {
+    box-sizing: border-box !important;
+    width: auto !important;
+    min-width: 0 !important;
+    flex: none !important;
+  }
 }
 
 /* ---------- buttons: cards, not grey slabs ---------- */
@@ -92,12 +113,19 @@ CSS = """
   hyphens: auto;
   overflow-wrap: anywhere;
 }
-/* the amount line under the name reads as secondary */
-[class*="st-key-ctgrid"] .stButton > button p:last-child {
-  font-weight: 500;
-  opacity: 0.62;
-  font-size: 0.78rem;
-  margin-top: 0.15rem;
+@media (max-width: 640px) {
+  [class*="st-key-ctgrid"] [data-testid="stHorizontalBlock"] {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    column-gap: .65rem !important;
+    row-gap: .65rem !important;
+  }
+  [class*="st-key-ctgrid"] [data-testid="stColumn"] {
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+    width: auto !important;
+    flex: none !important;
+  }
 }
 @media (max-width: 400px) {
   [class*="st-key-ctgrid"] .stButton > button {

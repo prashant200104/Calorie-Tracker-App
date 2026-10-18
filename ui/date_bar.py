@@ -27,16 +27,16 @@ def render_date_bar():
     active = get_active_date()
     is_today = active == today
 
-    col1, col2 = st.columns([4, 1])
-
     label = f"Today · {active:%a %d %b}" if is_today else f"{active:%a %d %b}"
-    col1.markdown(f"#### {label}")
+    if st.button(
+        label,
+        use_container_width=True,
+        key="date_bar_label",
+    ):
+        st.session_state[PICKER_KEY] = not st.session_state.get(PICKER_KEY, False)
 
-    if is_today:
-        if col2.button("Change", use_container_width=True):
-            st.session_state[PICKER_KEY] = not st.session_state.get(PICKER_KEY, False)
-    else:
-        if col2.button("Today", type="primary", use_container_width=True):
+    if not is_today:
+        if st.button("Today", type="primary", use_container_width=True):
             set_active_date(today)
             st.session_state[PICKER_KEY] = False
             st.rerun()
