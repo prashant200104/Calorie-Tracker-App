@@ -9,7 +9,7 @@ import streamlit as st
 from services import cache
 from services.picks import pick_food, pick_recipe, unpick
 from ui.add_food import render_add_food
-from ui.nutrition_preview import pretty
+from ui.nutrition_preview import pretty, unit_label
 from ui.quick_log import refresh
 
 
@@ -96,7 +96,7 @@ def render_grid_picker():
 
     for food in available[:40]:
         unit = (
-            f" · 1 {food.get('unit_name') or 'unit'} = {food['grams_per_unit']:g} g"
+            f" · 1 {unit_label(food.get('unit_name'))} = {food['grams_per_unit']:g} g"
             if food.get("grams_per_unit") else ""
         )
         if st.button(

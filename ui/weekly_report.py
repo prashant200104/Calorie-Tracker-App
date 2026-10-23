@@ -1,9 +1,12 @@
 """Last 7 days as one block of plain text, with a button that copies it.
 
-Everything logged in the window, day by day: each item with its macros, the
-day's total, and the 7-day total -- shaped to be pasted into a chat or a note
-rather than read on screen. The window always ends today, whatever date the
-rest of the screen is showing.
+The text is shaped for a language model to read, not for a person to admire:
+a header that states the units and what each column means, then one
+pipe-delimited line per item in a fixed field order, ISO dates, and the daily
+targets so the model can judge the numbers instead of asking for them. It
+stays legible to a human, which is all a paste into a chat needs.
+
+The window always ends today, whatever date the rest of the screen shows.
 """
 
 import json
@@ -12,40 +15,64 @@ from datetime import date, timedelta
 import streamlit as st
 import streamlit.components.v1 as components
 
+from analytics.targets import load_daily_targets
 from services import cache
 from ui.entries import build_entries
 from ui.nutrition_preview import pretty
 
 DAYS = 7
 
-# Short labels, because every item line carries all of them.
+# key, column name in the output, decimals. The order IS the field order of
+# every item, total and average line, so it is declared once in the header.
 MACROS = [
     ("calories", "kcal", 0),
-    ("protein", "P", 1),
-    ("carbs", "C", 1),
-    ("fat", "F", 1),
-    ("fiber", "Fib", 1),
-    ("sugar", "Sug", 1),
-    ("bad_fat", "Sat", 1),
+    ("protein", "protein_g", 1),
+    ("carbs", "carbs_g", 1),
+    ("fat", "fat_g", 1),
+    ("fiber", "fiber_g", 1),
+    ("sugar", "sugar_g", 1),
+    ("added_sugar", "added_sugar_g", 1),
+    ("bad_fat", "satfat_g", 1),
 ]
+FIELDS = [name for _key, name, _digits in MACROS]
 
 
 def _amount(value, digits):
-    formatted = f"{value:,.{digits}f}"
+    formatted = f"{value:,.{digits}f}".replace(",", "")
     if "." in formatted:
         formatted = formatted.rstrip("0").rstrip(".")
     return formatted
 
 
-def _macro_line(nutrients):
+def _values(nutrients):
+    """The macro columns, in FIELDS order, pipe-delimited."""
+    return " | ".join(
+        _amount(nutrients.get(key, 0) or 0, digits)
+        for key, _name, digits in MACROS
+    )
+
+
+def _grams(entry):
+    rows = entry["rows"] if entry["kind"] == "meal" else [entry["row"]]
+    return sum(float(r["grams"]) for r in rows)
+
+
+def _targets_line():
+    """What the numbers are supposed to look like, so a model need not ask."""
+    by_key = {t["key"]: t for t in load_daily_targets()}
     parts = []
-    for key, label, digits in MACROS:
-        value = nutrients.get(key, 0) or 0
-        if key == "calories":
-            parts.append(f"{_amount(value, digits)} kcal")
+    for key, name, _digits in MACROS:
+        target = by_key.get(key)
+        if not target:
+            continue
+        value = _amount(float(target["value"]), 1)
+        if target["mode"] == "goal":
+            parts.append(f"{name} {value} (goal)")
+        elif target["mode"] == "zero":
+            parts.append(f"{name} 0 (avoid)")
         else:
-            parts.append(f"{label} {_amount(value, digits)}g")
-    return " · ".join(parts)
+            parts.append(f"{name} <={value} (limit)")
+    return " | ".join(parts)
 
 
 def _window():
@@ -63,46 +90,62 @@ def build_report():
     for row in rows:
         by_day.setdefault(str(row["date"]), []).append(row)
 
-    totals = {key: 0.0 for key, _, _ in MACROS}
+    totals = {key: 0.0 for key, _name, _digits in MACROS}
     days_with_food = 0
-    lines = [f"Last 7 days · {start:%d %b} – {end:%d %b %Y}", ""]
+
+    lines = [
+        f"# Food log — {start.isoformat()} to {end.isoformat()} (last {DAYS} days)",
+        "",
+        "Energy in kcal, everything else in grams, per portion actually eaten.",
+        "sugar_g is TOTAL sugar; added_sugar_g counts only added/free sugar — "
+        "the sugar in milk, fruit and plain dairy is NOT added sugar.",
+        "satfat_g is saturated fat.",
+        f"Item line: name | amount | {' | '.join(FIELDS)}",
+        f"Daily targets: {_targets_line()}",
+        "",
+    ]
 
     for offset in range(DAYS - 1, -1, -1):
         day = end - timedelta(days=offset)
         entries = build_entries(by_day.get(day.isoformat(), []), recipes_by_id)
 
-        lines.append(f"{day:%a %d %b}")
+        lines.append(f"## {day.isoformat()} ({day:%a})")
         if not entries:
-            lines.append("  nothing logged")
+            lines.append("no food logged")
             lines.append("")
             continue
 
-        day_totals = {key: 0.0 for key, _, _ in MACROS}
+        day_totals = {key: 0.0 for key, _name, _digits in MACROS}
         for entry in entries:
             nutrients = entry["nutrients"]
             for key in day_totals:
                 day_totals[key] += nutrients.get(key, 0) or 0
-            suffix = " (meal)" if entry["kind"] == "meal" else ""
+
+            amount = entry["amount"]
+            grams = _grams(entry)
+            if not amount.endswith(" g"):
+                amount = f"{amount} ({_amount(grams, 0)} g)"
+            kind = " [meal]" if entry["kind"] == "meal" else ""
             lines.append(
-                f"  {pretty(entry['label'])}{suffix} — {entry['amount']} · "
-                f"{_macro_line(nutrients)}"
+                f"{pretty(entry['label'])}{kind} | {amount} | {_values(nutrients)}"
             )
 
         for key in totals:
             totals[key] += day_totals[key]
         days_with_food += 1
 
-        lines.append(f"  Day total — {_macro_line(day_totals)}")
+        lines.append(f"DAY TOTAL | — | {_values(day_totals)}")
         lines.append("")
 
     if not days_with_food:
         return None
 
     average = {key: value / days_with_food for key, value in totals.items()}
-    lines.append(
-        f"Daily average ({days_with_food} day"
-        f"{'s' if days_with_food != 1 else ''} with food) — {_macro_line(average)}"
-    )
+    lines += [
+        "## summary",
+        f"days with food logged: {days_with_food} of {DAYS}",
+        f"DAILY AVERAGE | — | {_values(average)}",
+    ]
 
     return "\n".join(lines)
 

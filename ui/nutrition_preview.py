@@ -1,5 +1,7 @@
 """Shared macro preview, so the grid dialog and the full form agree."""
 
+import re
+
 import streamlit as st
 
 from db.nutrients import COLUMN, LABEL, UNIT
@@ -9,6 +11,21 @@ PREVIEW_KEYS = ["calories", "protein", "carbs", "fat", "fiber"]
 
 def pretty(name):
     return name.replace("_", " ").title()
+
+
+# Unit names were typed as whole phrases -- "1 egg", "1 medium (peeled, 118g)"
+# -- which read as "6 1 egg" and "How many 1 egg s?" once a count is put in
+# front. The grams are already in grams_per_unit, so strip both.
+_LEADING_ONE = re.compile(r"^\s*1\s+")
+_TRAILING_PAREN = re.compile(r"\s*\([^)]*\)\s*$")
+
+
+def unit_label(name, fallback="unit"):
+    """'1 medium (peeled, 118g)' -> 'medium'."""
+    if not name:
+        return fallback
+    cleaned = _TRAILING_PAREN.sub("", _LEADING_ONE.sub("", str(name))).strip()
+    return cleaned or fallback
 
 
 def totals_for(parts):

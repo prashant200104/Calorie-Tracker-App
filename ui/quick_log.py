@@ -14,7 +14,7 @@ import streamlit as st
 from services import cache
 from services.logs import add_log
 from services.recipes import item_grams, log_recipe, sorted_items
-from ui.nutrition_preview import pretty, show_preview
+from ui.nutrition_preview import pretty, show_preview, unit_label
 
 COLUMNS = 2
 TARGET_KEY = "quick_log_target"
@@ -68,7 +68,7 @@ def render_quick_log(selected_date, limit=None):
 
 
 def _render_tile(item, selected_date):
-    amount = f"{item['default_quantity']:g} {item['unit_name']}"
+    amount = f"{item['default_quantity']:g} {unit_label(item['unit_name'], item['unit_name'])}"
     suffix = " · meal" if item["kind"] == "recipe" else ""
     label = pretty(item["label"])
 
@@ -111,7 +111,7 @@ def _recipe_body(item, selected_date):
 
     for ri in sorted_items(recipe):
         food = ri["foods"]
-        unit = "g" if ri["unit"] == "g" else (food.get("unit_name") or "unit")
+        unit = "g" if ri["unit"] == "g" else unit_label(food.get("unit_name"))
 
         if ri.get("is_variable"):
             default = float(previous.get(ri["id"], ri["quantity"]))
@@ -173,7 +173,7 @@ def _food_body(item, selected_date):
         quantity = None
         effective = grams
     else:
-        unit = food.get("unit_name") or "unit"
+        unit = unit_label(food.get("unit_name"))
         quantity = st.number_input(
             f"How many {unit}s?",
             min_value=0.0,

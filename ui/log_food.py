@@ -5,7 +5,7 @@ import streamlit as st
 from services import cache
 from services.logs import add_log
 from services.recipes import item_grams, log_recipe, sorted_items
-from ui.nutrition_preview import PREVIEW_KEYS, pretty, show_preview
+from ui.nutrition_preview import PREVIEW_KEYS, pretty, show_preview, unit_label
 from ui.quick_log import load_suggestions, refresh
 
 
@@ -65,7 +65,7 @@ def render_meal(selected_date, recipes):
 
     for item in items:
         food = item["foods"]
-        unit_label = "g" if item["unit"] == "g" else (food.get("unit_name") or "unit")
+        unit_text = "g" if item["unit"] == "g" else unit_label(food.get("unit_name"))
 
         if item["is_variable"]:
             previous = last.get(item["food_id"])
@@ -75,7 +75,7 @@ def render_meal(selected_date, recipes):
                 else float(item["quantity"])
             )
             quantity = st.number_input(
-                f"{pretty(food['name'])} — {unit_label}s",
+                f"{pretty(food['name'])} — {unit_text}s",
                 min_value=0.0,
                 value=float(default),
                 step=1.0 if item["unit"] == "unit" else 10.0,
@@ -102,7 +102,7 @@ def render_meal(selected_date, recipes):
 
         if not item["is_variable"]:
             fixed_lines.append(
-                f"{quantity:g} {unit_label} ({grams:g} g) {pretty(food['name'])}"
+                f"{quantity:g} {unit_text} ({grams:g} g) {pretty(food['name'])}"
             )
 
     if fixed_lines:
@@ -146,7 +146,7 @@ def render_single_food(selected_date):
         label = pretty(food["name"])
         if food.get("grams_per_unit"):
             label += (
-                f"  ·  1 {food.get('unit_name') or 'unit'}"
+                f"  ·  1 {unit_label(food.get('unit_name'))}"
                 f" = {food['grams_per_unit']:g} g"
             )
         food_map[label] = food
@@ -156,7 +156,7 @@ def render_single_food(selected_date):
 
     grams_per_unit = food.get("grams_per_unit")
     has_unit = grams_per_unit is not None
-    unit_label = food.get("unit_name") or "unit"
+    unit_text = unit_label(food.get("unit_name"))
 
     previous = last.get(food["id"])
 
@@ -187,7 +187,7 @@ def render_single_food(selected_date):
             else 1.0
         )
         amount = st.number_input(
-            f"{unit_label.capitalize()}s  (1 = {grams_per_unit:g} g)",
+            f"{unit_text.capitalize()}s  (1 = {grams_per_unit:g} g)",
             min_value=0.0, value=float(default), step=1.0,
             key=f"units_{food['id']}",
         )

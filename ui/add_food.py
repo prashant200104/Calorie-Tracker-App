@@ -58,6 +58,18 @@ def render_add_food():
         if group == "Macros":
             st.subheader("Macros")
             values.update(_nutrient_inputs(KEYS_IN_GROUP[group]))
+            # "0 = not known" is wrong for added sugar: for whole foods zero is
+            # the true value, and leaving it NULL both loses the fact and holds
+            # the Added sugar target at "data incomplete" forever.
+            added_sugar_unknown = st.checkbox(
+                "Added sugar not known",
+                help=(
+                    "Leave this off for whole foods — milk, fruit and nuts have "
+                    "sugar but no ADDED sugar, and that zero is worth recording. "
+                    "Tick it only for a packaged food whose label doesn't say."
+                ),
+                key="add_food_added_sugar_unknown",
+            )
         elif group == "Amino acids":
             with st.expander(f"{group} (optional)"):
                 values.update(_nutrient_inputs(KEYS_IN_GROUP[group]))
@@ -93,6 +105,15 @@ def render_add_food():
 
         food = {"name": name.strip().lower().replace(" ", "_")}
         food.update(values)
+
+        added_column = COLUMN["added_sugar"]
+        if added_column not in food and not added_sugar_unknown:
+            food[added_column] = 0
+
+        sugar_column = COLUMN["sugar"]
+        if food.get(added_column) and food.get(added_column) > food.get(sugar_column, 0):
+            st.error("Added sugar can't be more than total sugar.")
+            return
         food.update(food_attributes)
 
         if amino_acids_json.strip():

@@ -13,7 +13,7 @@ import streamlit as st
 from db.nutrients import COLUMN, GROUPS, KEYS, KEYS_IN_GROUP
 from services.logs import remove_log, set_log_grams
 from services.recipes import delete_meal, meal_quantities, sorted_items, update_meal
-from ui.nutrition_preview import pretty
+from ui.nutrition_preview import pretty, unit_label
 from ui.quick_log import refresh
 from ui.theme import empty, nutrient_chips
 
@@ -35,7 +35,8 @@ def _food_amount(row):
     grams = float(row["grams"])
     per_unit = food.get("grams_per_unit")
     if per_unit:
-        return f"{grams / float(per_unit):g} {food.get('unit_name') or 'unit'}"
+        quantity = round(grams / float(per_unit), 2)
+        return f"{quantity:g} {unit_label(food.get('unit_name'))}"
     return f"{grams:g} g"
 
 
@@ -47,7 +48,7 @@ def _meal_amount(recipe, rows):
         if not item.get("is_variable") or item["id"] not in quantities:
             continue
         unit = "g" if item["unit"] == "g" else (
-            item["foods"].get("unit_name") or "unit"
+            unit_label(item["foods"].get("unit_name"))
         )
         parts.append(f"{quantities[item['id']]:g} {unit}")
     return " + ".join(parts) if parts else "1 serving"
@@ -183,7 +184,7 @@ def _meal_controls(entry, selected_date):
         if not item.get("is_variable"):
             continue
         food = item["foods"]
-        unit = "g" if item["unit"] == "g" else (food.get("unit_name") or "unit")
+        unit = "g" if item["unit"] == "g" else unit_label(food.get("unit_name"))
         quantity = st.number_input(
             f"How many {unit}s?",
             min_value=0.0,
@@ -215,7 +216,7 @@ def _food_controls(entry):
     per_unit = food.get("grams_per_unit")
 
     if per_unit:
-        unit = food.get("unit_name") or "unit"
+        unit = unit_label(food.get("unit_name"))
         quantity = st.number_input(
             f"How many {unit}s?",
             min_value=0.0,
