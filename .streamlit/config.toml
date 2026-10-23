@@ -1,0 +1,15 @@
+# Deliberately minimal: no `base`, no colours beyond the accent.
+#
+# Streamlit already follows the phone's light/dark setting, and ui/theme.py
+# redefines its own tokens under prefers-color-scheme. Pinning base or
+# backgroundColor here would freeze the app in one mode and fight that CSS.
+[theme]
+# Streamlit's default accent is red, which leaks into the widgets the
+# stylesheet does not reach: the Last 7 days toggle, the date picker's
+# selected day, the Settings segmented control, focus rings. This is the
+# same emerald as --ct-accent.
+primaryColor = "#10b981"
+
+[browser]
+# No telemetry ping on each session.
+gatherUsageStats = false

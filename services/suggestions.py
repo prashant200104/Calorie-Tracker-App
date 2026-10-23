@@ -112,7 +112,7 @@ def build_suggestions(today=None, lookback_days=LOOKBACK_DAYS, limit=None):
             dates = recipe_dates.get(recipe_id, set())
             score = sum(_weight((today - d).days) for d in dates)
 
-            variable = [i for i in sorted_items(recipe) if i.get("is_variable")]
+            ingredients = sorted_items(recipe)
             overrides = {}
             headline = None
 
@@ -124,7 +124,7 @@ def build_suggestions(today=None, lookback_days=LOOKBACK_DAYS, limit=None):
                     for log_date, log in recipe_rows[recipe_id] if log_date == latest
                 }
 
-            for item in variable:
+            for item in ingredients:
                 food = item["foods"]
                 grams = grams_by_food.get(item["food_id"])
                 if grams is None:
@@ -132,7 +132,9 @@ def build_suggestions(today=None, lookback_days=LOOKBACK_DAYS, limit=None):
                 else:
                     quantity, _ = _as_quantity(grams, food)
                 overrides[item["id"]] = quantity
-                if headline is None:
+                # The headline is the ingredient the meal is named for: it is
+                # what the tile shows, so only is_variable earns that spot.
+                if headline is None and item.get("is_variable"):
                     headline = (quantity, food.get("unit_name") or "unit")
 
             items.append({

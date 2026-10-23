@@ -5,7 +5,7 @@ import streamlit as st
 from services import cache
 from services.logs import add_log
 from services.recipes import item_grams, log_recipe, sorted_items
-from ui.nutrition_preview import PREVIEW_KEYS, pretty, show_preview, unit_label
+from ui.nutrition_preview import pretty, show_preview, unit_label, unit_step
 from ui.quick_log import load_suggestions, refresh
 
 
@@ -60,36 +60,30 @@ def render_meal(selected_date, recipes):
     last = _last_amounts()
     overrides = {}
     parts = []
-    fixed_lines = []
     invalid = False
 
     for item in items:
         food = item["foods"]
         unit_text = "g" if item["unit"] == "g" else unit_label(food.get("unit_name"))
 
-        if item["is_variable"]:
-            previous = last.get(item["food_id"])
-            default = (
-                previous["quantity"]
-                if previous and not previous["in_grams"]
-                else float(item["quantity"])
-            )
-            quantity = st.number_input(
-                f"{pretty(food['name'])} — {unit_text}s",
-                min_value=0.0,
-                value=float(default),
-                step=1.0 if item["unit"] == "unit" else 10.0,
-                key=f"recipe_item_{item['id']}",
-            )
-        else:
-            quantity = float(item["quantity"])
+        previous = last.get(item["food_id"])
+        default = (
+            previous["quantity"]
+            if previous and not previous["in_grams"]
+            else float(item["quantity"])
+        )
+        quantity = st.number_input(
+            f"{pretty(food['name'])} — {unit_text}s",
+            min_value=0.0,
+            value=float(default),
+            step=1.0 if item["unit"] == "unit" else 10.0,
+            key=f"recipe_item_{item['id']}",
+        )
+        overrides[item["id"]] = quantity
 
         if quantity <= 0:
             invalid = True
             continue
-
-        if item["is_variable"]:
-            overrides[item["id"]] = quantity
 
         try:
             grams = item_grams(item, quantity)
@@ -99,14 +93,6 @@ def render_meal(selected_date, recipes):
             continue
 
         parts.append((food, grams))
-
-        if not item["is_variable"]:
-            fixed_lines.append(
-                f"{quantity:g} {unit_text} ({grams:g} g) {pretty(food['name'])}"
-            )
-
-    if fixed_lines:
-        st.caption("Added automatically: " + " · ".join(fixed_lines))
 
     if parts:
         show_preview(parts)
@@ -188,8 +174,8 @@ def render_single_food(selected_date):
         )
         amount = st.number_input(
             f"{unit_text.capitalize()}s  (1 = {grams_per_unit:g} g)",
-            min_value=0.0, value=float(default), step=1.0,
-            key=f"units_{food['id']}",
+            min_value=0.0, value=float(default), step=unit_step(grams_per_unit),
+            key=f"units_{food['id']}_{unit_text}",
         )
         quantity, grams = amount, None
 

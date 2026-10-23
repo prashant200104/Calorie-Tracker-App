@@ -4,7 +4,8 @@ import re
 
 import streamlit as st
 
-from db.nutrients import COLUMN, LABEL, UNIT
+from analytics.totals import sum_parts
+from db.nutrients import LABEL, UNIT
 
 PREVIEW_KEYS = ["calories", "protein", "carbs", "fat", "fiber"]
 
@@ -28,18 +29,21 @@ def unit_label(name, fallback="unit"):
     return cleaned or fallback
 
 
-def totals_for(parts):
-    """parts: [(food, grams)] -> {key: scaled total}"""
-    totals = {key: 0.0 for key in PREVIEW_KEYS}
-    for food, grams in parts:
-        factor = grams / 100.0
-        for key in PREVIEW_KEYS:
-            totals[key] += factor * (food.get(COLUMN[key]) or 0)
-    return totals
+def unit_step(grams_per_unit):
+    """How far one tap of the stepper moves.
+
+    Whole units for an egg or a slice. A litre-sized unit moves by a tenth,
+    so 1.2 L is two taps off 1 L rather than an amount you cannot reach.
+    """
+    try:
+        grams = float(grams_per_unit or 0)
+    except (TypeError, ValueError):
+        return 1.0
+    return 0.1 if grams >= 500 else 1.0
 
 
 def show_preview(parts, compact=False):
-    totals = totals_for(parts)
+    totals = sum_parts(parts, PREVIEW_KEYS)
 
     if compact:
         st.caption(

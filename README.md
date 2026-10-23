@@ -26,6 +26,14 @@ of failing later inside the Supabase client.
 
 Seed the food table once: `python -m db.seed_food`
 
+## Config
+
+[.streamlit/config.toml](.streamlit/config.toml) sets the accent to the app's emerald and turns
+off usage stats. It deliberately does **not** set `base`, `backgroundColor` or `textColor`:
+Streamlit follows the phone's light/dark setting on its own, and pinning those would freeze the
+app in one mode and fight the `prefers-color-scheme` rules in `ui/theme.py`.
+`.gitignore` excludes `.streamlit/secrets.toml` only, so this file ships with the repo.
+
 ## Architecture
 
 Layered, one direction of dependency: `ui → services → db/queries → db/connection → Supabase`.
@@ -37,14 +45,15 @@ config/settings.py     loads .env → SUPABASE_URL / SUPABASE_KEY
 db/connection.py       creates the module-level `supabase` client
 db/queries.py          all raw Supabase table calls (foods, daily_logs)
 db/seed_food.py        COMMON_FOODS list (~22 Indian/fitness staples) + seed()
-db/backup.py           empty placeholder
 services/cache.py      every read, memoised per session; cache.clear() after writes
+services/food_import.py  the JSON schema handed to an LLM, and the parser for its answer
 services/foods.py      list_foods(), add_food()
 services/logs.py       add_log() — upserts: if a log exists for (date, food_id), adds grams to it
 analytics/totals.py    sums nutrients over rows the caller already fetched
 ui/dashboard.py        main screen: two action buttons, date picker, 3 tables + line chart
 ui/log_food.py         log a food by grams or by units
-ui/add_food.py         create a new food (per-100g nutrition)
+ui/add_food.py         add a food: paste JSON from an LLM, or type it by hand
+ui/clipboard.py        the copy-to-clipboard button (its own iframe)
 ui/weekly_chart.py     last 7 days: calorie bars vs goal + a separate macro grams chart
 ui/weekly_report.py    last 7 days as plain text + a JS copy-to-clipboard button
 ```
@@ -61,6 +70,8 @@ the schema; `db/supabase_setup.sql` contains the combined setup script.
 `id`, `date`, `food_id` → foods.id, `grams`, `updated_at`
 
 Nutrition is always stored per 100g; everything else is derived as `grams / 100 * value`.
+Water is a food like any other: stored in grams (1 ml ~ 1 g) and shown in whatever unit its
+target declares — `"unit": "L"` divides by 1000, `"unit": "ml"` by 1, no code change either way.
 Personal daily goals and upper limits are stored in [config/daily_targets.json](config/daily_targets.json)
 and compared with logged food on the dashboard. Nutrient rows show the share of logged food
 with known values so missing database data is not mistaken for zero intake. The target table
@@ -83,11 +94,18 @@ the buttons stay visible on top. Page-level sidebar nav in `app.py` is commented
   `st.rerun(scope="app")`, because the hero and the entry list have to catch up.
 - **"Last 7 days" is lazy.** An expander body runs even while collapsed, so that section is behind a
   `st.toggle` instead -- its charts and report only cost a query once opened.
-- **`add_food.py` never collects `grams_per_unit`**, so foods created in the UI can only be logged
-  by grams — "Units" mode shows a warning for them. Only seeded foods have units.
-- **Dead code:** `insert_log_safe()` in [db/queries.py](db/queries.py) is unused (`add_log` uses `insert_log`),
-  `db/backup.py` is empty, `calculate_grams()`'s `quantity` path is never used (the UI converts
-  units → grams itself in [ui/log_food.py](ui/log_food.py)).
+- **Added sugar needs an explicit 0.** `_nutrient_inputs` records only values > 0 ("0 means not
+  known"), but 0 is the TRUE value for milk, fruit and nuts. The form now writes an explicit 0
+  unless "Added sugar not known" is ticked; [db/migrations/009_fix_added_sugar.sql](db/migrations/009_fix_added_sugar.sql)
+  backfills the foods that were left NULL.
+- **Importing a food upserts on name**, so re-importing is how you correct a food's numbers —
+  there is no separate edit screen.
+- **No recipe-creation path.** `create_recipe()` / `add_recipe_item()` were removed as dead code;
+  meals exist in the schema and log fine, but a new one is made with SQL until a builder screen exists.
+- **A dialog closes with an app-scope `st.rerun()`.** A dialog belongs to the page, so
+  `st.rerun(scope="fragment")` clears the state behind it and leaves the modal on screen.
+- `calculate_grams()`'s `quantity` path is never used: the UI converts units → grams itself
+  in [ui/log_food.py](ui/log_food.py).
 - `services/logs.py::add_log` *accumulates* grams for a repeat (date, food) pair rather than
   creating a second row. There is no delete/edit-log UI.
 - Grams are cast to `int` before insert, so fractional grams are truncated.

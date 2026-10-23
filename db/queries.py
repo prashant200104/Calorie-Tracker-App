@@ -14,15 +14,6 @@ def upsert_food(food: dict):
 def get_all_foods():
     return supabase.table("foods").select("*").order("name").execute()
 
-def get_food_by_name(name: str):
-    response = supabase.table("foods") \
-        .select("*") \
-        .eq("name", name) \
-        .limit(1) \
-        .execute()
-    return response.data[0] if response.data else None
-
-
 # --------------------------------------------------------------- recipes
 def get_all_recipes(active_only=True):
     query = supabase.table("recipes").select("*")
@@ -44,22 +35,6 @@ def get_recipes_with_items(active_only=True):
     if active_only:
         query = query.eq("is_active", True)
     return query.order("name").execute()
-
-def upsert_recipe(recipe: dict):
-    return supabase.table("recipes").upsert(recipe, on_conflict="name").execute()
-
-def insert_recipe_item(item: dict):
-    return supabase.table("recipe_items") \
-        .upsert(item, on_conflict="recipe_id,food_id") \
-        .execute()
-
-def delete_recipe_item(item_id):
-    return supabase.table("recipe_items").delete().eq("id", item_id).execute()
-
-def delete_recipe(recipe_id):
-    """recipe_items cascade; daily_logs.recipe_id is set to null."""
-    return supabase.table("recipes").delete().eq("id", recipe_id).execute()
-
 
 # ------------------------------------------------------------ daily logs
 def insert_log(log: dict):

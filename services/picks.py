@@ -33,16 +33,6 @@ def list_picks():
 
     return picks
 
-
-def picked_ids():
-    """({food_id, ...}, {recipe_id, ...}) for quick membership checks."""
-    picks = list_picks()
-    return (
-        {p["target_id"] for p in picks if p["kind"] == "food"},
-        {p["target_id"] for p in picks if p["kind"] == "recipe"},
-    )
-
-
 def pick_food(food_id):
     return add_quick_pick(food_id=food_id)
 

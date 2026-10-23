@@ -5,7 +5,7 @@
     {"key": "carbs", "label": "Carbohydrates", "value": 225, "unit": "g", "mode": "goal"},
     {"key": "fat", "label": "Fat", "value": 65, "unit": "g", "mode": "goal"},
     {"key": "fiber", "label": "Fiber", "value": 35, "unit": "g", "mode": "goal"},
-    {"key": "water", "label": "Water", "value": 4000, "unit": "ml", "mode": "goal"},
+    {"key": "water", "label": "Water", "value": 4, "unit": "L", "mode": "goal"},
     {"key": "sugar", "label": "Sugar (total)", "value": 40, "unit": "g", "mode": "limit"},
     {"key": "added_sugar", "label": "Added sugar", "value": 25, "unit": "g", "mode": "limit"},
     {"key": "bad_fat", "label": "Saturated fat", "value": 20, "unit": "g", "mode": "limit"},

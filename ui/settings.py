@@ -10,7 +10,7 @@ from services import cache
 from services.picks import pick_food, pick_recipe, unpick
 from ui.add_food import render_add_food
 from ui.nutrition_preview import pretty, unit_label
-from ui.quick_log import refresh
+from ui.quick_log import refresh, refresh_button
 
 
 def render_settings():
@@ -19,12 +19,20 @@ def render_settings():
         ["Quick-log grid", "Add food"],
         default="Quick-log grid",
         label_visibility="collapsed",
+        key="settings_section",
     )
 
     if section == "Add food":
         render_add_food()
     else:
         render_grid_picker()
+
+    st.divider()
+    st.caption(
+        "Reads are cached for a few minutes. If you changed something in "
+        "Supabase directly, pull it in now."
+    )
+    refresh_button(key="settings_refresh")
 
 
 def render_grid_picker():

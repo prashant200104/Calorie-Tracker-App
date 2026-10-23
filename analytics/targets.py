@@ -10,6 +10,19 @@ from db.nutrients import COLUMN
 TARGETS_PATH = Path(__file__).resolve().parents[1] / "config" / "daily_targets.json"
 VALID_MODES = {"goal", "limit", "zero", "average_limit"}
 
+# Water is logged as a food, so it is stored in GRAMS like everything else
+# (1 ml ~ 1 g). What it is shown in is whatever unit the target declares, so
+# switching between litres and millilitres is a config change, not a code one.
+WATER_PER_UNIT = {
+    "ml": 1.0, "millilitre": 1.0, "milliliter": 1.0,
+    "l": 1000.0, "litre": 1000.0, "liter": 1000.0,
+    "litres": 1000.0, "liters": 1000.0,
+}
+
+
+def water_grams_per_unit(target):
+    return WATER_PER_UNIT.get(str(target.get("unit", "ml")).strip().lower(), 1.0)
+
 
 @lru_cache(maxsize=1)
 def load_daily_targets():
@@ -79,8 +92,8 @@ def compare_daily_targets(log_rows, targets=None):
 
     Coverage is weighted by logged food grams. Glycemic index is averaged by
     consumed carbohydrate grams and requires both GI and carbohydrate data.
-    Water is counted from a food row named "water"; logged grams are treated as
-    millilitres using water's approximate 1 g/ml density.
+    Water is counted from a food row named "water"; logged grams are read as
+    millilitres (1 g/ml) and then converted into the unit its target declares.
     """
     targets = load_daily_targets() if targets is None else targets
     totals = {target["key"]: 0.0 for target in targets}
@@ -128,6 +141,11 @@ def compare_daily_targets(log_rows, targets=None):
         key = target["key"]
         if key == "glycemic_index":
             intake = gi_weighted_sum / gi_carb_weight if gi_carb_weight else None
+        elif key == "water":
+            intake = (
+                totals[key] / water_grams_per_unit(target)
+                if known_grams[key] else None
+            )
         else:
             intake = totals[key] if known_grams[key] else None
         coverage_denominator = (

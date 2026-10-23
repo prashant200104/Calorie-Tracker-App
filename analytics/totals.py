@@ -14,13 +14,23 @@ from db.nutrients import COLUMN, KEYS
 from services.cache import logs_between
 
 
-def _nutrient_values(food, factor):
-    """Scale every registry nutrient from per-100g to the logged amount.
+def scale(food, grams, keys=KEYS):
+    """Scale a per-100g food row to the amount actually eaten.
 
     A missing/NULL column contributes 0 so sums stay numeric; use the foods
     table itself if you need to tell "not known" apart from a real zero.
     """
-    return {key: factor * (food.get(COLUMN[key]) or 0) for key in KEYS}
+    factor = grams / 100.0
+    return {key: factor * (food.get(COLUMN[key]) or 0) for key in keys}
+
+
+def sum_parts(parts, keys=KEYS):
+    """parts: [(food, grams)] -> one total per key."""
+    totals = {key: 0.0 for key in keys}
+    for food, grams in parts:
+        for key, value in scale(food, grams, keys).items():
+            totals[key] += value
+    return totals
 
 
 def _usable(log):
@@ -54,7 +64,7 @@ def totals_for_rows(rows):
         if usable is None:
             continue
         _date, grams, food = usable
-        for key, value in _nutrient_values(food, grams / 100.0).items():
+        for key, value in scale(food, grams).items():
             totals[key] += value
         counted += 1
 
@@ -70,7 +80,7 @@ def daily_totals_frame(rows):
             continue
         date_val, grams, food = usable
         record = {"date": date_val}
-        record.update(_nutrient_values(food, grams / 100.0))
+        record.update(scale(food, grams))
         records.append(record)
 
     if not records:

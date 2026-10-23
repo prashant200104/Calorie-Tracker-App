@@ -10,24 +10,15 @@ from collections import defaultdict
 
 import streamlit as st
 
-from db.nutrients import COLUMN, GROUPS, KEYS, KEYS_IN_GROUP
+from analytics.totals import sum_parts
+from db.nutrients import GROUPS, KEYS_IN_GROUP
 from services.logs import remove_log, set_log_grams
 from services.recipes import delete_meal, meal_quantities, sorted_items, update_meal
-from ui.nutrition_preview import pretty, unit_label
+from ui.nutrition_preview import pretty, unit_label, unit_step
 from ui.quick_log import refresh
 from ui.theme import empty, nutrient_chips
 
 TARGET_KEY = "entry_edit_target"
-
-
-def _nutrients(parts):
-    """parts: [(food, grams)] -> every registry nutrient, scaled and summed."""
-    totals = {key: 0.0 for key in KEYS}
-    for food, grams in parts:
-        factor = grams / 100.0
-        for key in KEYS:
-            totals[key] += factor * (food.get(COLUMN[key]) or 0)
-    return totals
 
 
 def _food_amount(row):
@@ -81,7 +72,7 @@ def build_entries(rows, recipes_by_id):
             "key": f"meal_{recipe_id}",
             "label": recipe["name"],
             "amount": _meal_amount(recipe, meal_rows),
-            "nutrients": _nutrients(parts),
+            "nutrients": sum_parts(parts),
             "recipe": recipe,
             "rows": meal_rows,
         })
@@ -93,7 +84,7 @@ def build_entries(rows, recipes_by_id):
             "key": f"food_{row['id']}",
             "label": food["name"],
             "amount": _food_amount(row),
-            "nutrients": _nutrients([(food, float(row["grams"]))]),
+            "nutrients": sum_parts([(food, float(row["grams"]))]),
             "row": row,
         })
 
@@ -110,9 +101,15 @@ def render_entries(selected_date, entries):
     for entry in entries:
         _render_row(entry)
 
+    # The key, not the entry: the row is rebuilt from the current logs every
+    # run, so an open dialog cannot drift from what is stored.
     target = st.session_state.get(TARGET_KEY)
     if target is not None:
-        _open_dialog(target, selected_date)
+        entry = next((e for e in entries if e["key"] == target), None)
+        if entry is None:
+            _close()
+        else:
+            _open_dialog(entry, selected_date)
 
 
 def _render_row(entry):
@@ -124,7 +121,7 @@ def _render_row(entry):
         f"{n['protein']:.0f}g protein"
     )
     if st.button(label, key=f"entry_{entry['key']}", use_container_width=True):
-        st.session_state[TARGET_KEY] = entry
+        st.session_state[TARGET_KEY] = entry["key"]
 
 
 def _close():
@@ -181,12 +178,10 @@ def _meal_controls(entry, selected_date):
     invalid = False
 
     for item in sorted_items(recipe):
-        if not item.get("is_variable"):
-            continue
         food = item["foods"]
         unit = "g" if item["unit"] == "g" else unit_label(food.get("unit_name"))
         quantity = st.number_input(
-            f"How many {unit}s?",
+            f"{pretty(food['name'])} ({unit})",
             min_value=0.0,
             value=float(current.get(item["id"], item["quantity"])),
             step=1.0 if item["unit"] == "unit" else 10.0,
@@ -221,8 +216,8 @@ def _food_controls(entry):
             f"How many {unit}s?",
             min_value=0.0,
             value=round(current / float(per_unit), 2),
-            step=1.0,
-            key=f"edit_food_{row['id']}",
+            step=unit_step(per_unit),
+            key=f"edit_food_{row['id']}_{unit}",
         )
         grams = quantity * float(per_unit)
         st.caption(f"= {grams:g} g")

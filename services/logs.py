@@ -1,6 +1,5 @@
 from db.queries import (
     delete_log,
-    delete_logs_for_recipe,
     get_log,
     get_logs_between,
     get_logs_for_date,
@@ -75,8 +74,3 @@ def set_log_grams(log_id, grams):
 
 def remove_log(log_id):
     return delete_log(log_id)
-
-
-def remove_meal(day, recipe_id):
-    """Delete every entry a meal contributed on that day."""
-    return delete_logs_for_recipe(day, recipe_id)

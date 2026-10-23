@@ -93,7 +93,3 @@ DEFAULT_KEYS = ["calories", "protein", "carbs", "fat", "fiber", "sugar", "bad_fa
 
 # Columns that are not nutrients, so forms/queries can treat them separately.
 META_COLUMNS = ["name", "unit_name", "grams_per_unit", "source", "notes"]
-
-
-def label_with_unit(key):
-    return f"{LABEL[key]} ({UNIT[key]})"

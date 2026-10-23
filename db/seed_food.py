@@ -3,8 +3,8 @@ from db.queries import insert_food
 COMMON_FOODS = [
   {
     "name": "water",
-    "unit_name": "ml",
-    "grams_per_unit": 1,
+    "unit_name": "litre",
+    "grams_per_unit": 1000,
     "calories_per_100g": 0,
     "protein_per_100g": 0,
     "carbohydrates_per_100g": 0,

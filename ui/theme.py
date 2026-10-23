@@ -23,12 +23,6 @@ MACRO_COLORS = {
     "fiber": "var(--ct-fiber)",
 }
 
-# Deterministic avatar colours: same food, same colour, forever.
-AVATAR_COLORS = [
-    "#10b981", "#3b82f6", "#a855f7", "#f59e0b",
-    "#ef4444", "#14b8a6", "#ec4899", "#8b5cf6",
-]
-
 CSS = """
 <style>
 :root {
@@ -197,11 +191,6 @@ details[data-testid="stExpander"], [data-testid="stExpander"] {
 
 def inject():
     st.markdown(CSS, unsafe_allow_html=True)
-
-
-def avatar_color(name):
-    return AVATAR_COLORS[sum(map(ord, name)) % len(AVATAR_COLORS)]
-
 
 def section(text):
     st.markdown(f'<div class="ct-section">{text}</div>', unsafe_allow_html=True)

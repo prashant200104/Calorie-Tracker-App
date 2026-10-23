@@ -83,13 +83,13 @@ begin
   end if;
 end $$;
 
--- Drinking water is logged as a food: 1 ml is approximately 1 g.
+-- Drinking water is logged as a food, by the litre: 1 ml is approximately 1 g.
 insert into foods (
     name, unit_name, grams_per_unit, calories_per_100g, protein_per_100g,
     carbohydrates_per_100g, fat_per_100g, fiber_per_100g,
     bad_fat_per_100g, sugar_per_100g
 ) values (
-    'water', 'ml', 1, 0, 0, 0, 0, 0, 0, 0
+    'water', 'litre', 1000, 0, 0, 0, 0, 0, 0, 0
 )
 on conflict (name) do update set
     unit_name = excluded.unit_name,

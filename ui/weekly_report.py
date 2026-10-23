@@ -9,14 +9,13 @@ stays legible to a human, which is all a paste into a chat needs.
 The window always ends today, whatever date the rest of the screen shows.
 """
 
-import json
 from datetime import date, timedelta
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from analytics.targets import load_daily_targets
 from services import cache
+from ui.clipboard import copy_button
 from ui.entries import build_entries
 from ui.nutrition_preview import pretty
 
@@ -150,72 +149,6 @@ def build_report():
     return "\n".join(lines)
 
 
-def _copy_button(text):
-    """A real clipboard button; Streamlit has no native one.
-
-    navigator.clipboard needs a secure context, so a hidden-textarea
-    execCommand fallback keeps it working over plain http on the LAN.
-    """
-    payload = json.dumps(text)
-    components.html(
-        f"""
-<style>
-  :root {{ color-scheme: light dark; }}
-  html, body {{ margin: 0; }}
-  button {{
-    width: 100%;
-    padding: .55rem .75rem;
-    font: 600 .9rem/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    color: #fff;
-    background: #10b981;
-    border: 0;
-    border-radius: .5rem;
-    cursor: pointer;
-  }}
-  button:active {{ opacity: .85; }}
-  button.done {{ background: #059669; }}
-</style>
-<button id="ct-copy">Copy last 7 days</button>
-<script>
-  const text = {payload};
-  const button = document.getElementById("ct-copy");
-
-  function fallback() {{
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.style.position = "fixed";
-    area.style.opacity = "0";
-    document.body.appendChild(area);
-    area.select();
-    let ok = false;
-    try {{ ok = document.execCommand("copy"); }} catch (e) {{ ok = false; }}
-    document.body.removeChild(area);
-    return ok;
-  }}
-
-  function done(ok) {{
-    button.textContent = ok ? "Copied ✓" : "Press ⌘/Ctrl+C";
-    button.classList.toggle("done", ok);
-    if (!ok) fallback();
-    setTimeout(() => {{
-      button.textContent = "Copy last 7 days";
-      button.classList.remove("done");
-    }}, 2000);
-  }}
-
-  button.addEventListener("click", () => {{
-    if (navigator.clipboard && window.isSecureContext) {{
-      navigator.clipboard.writeText(text).then(() => done(true), () => done(fallback()));
-    }} else {{
-      done(fallback());
-    }}
-  }});
-</script>
-""",
-        height=46,
-    )
-
-
 def render_copy_last_7_days():
     try:
         report = build_report()
@@ -227,4 +160,4 @@ def render_copy_last_7_days():
         st.caption("Nothing logged in the last 7 days.")
         return
 
-    _copy_button(report)
+    copy_button(report, "Copy last 7 days")

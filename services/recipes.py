@@ -9,8 +9,6 @@ from db.queries import (
     get_all_recipes,
     get_recipe_with_items,
     get_recipes_with_items,
-    insert_recipe_item,
-    upsert_recipe,
 )
 from services.logs import add_log, remove_log, set_log_grams
 
@@ -33,15 +31,6 @@ def get_recipe(recipe_id):
 def sorted_items(recipe):
     return sorted(recipe.get("recipe_items") or [], key=lambda i: i.get("sort_order", 0))
 
-
-def variable_items(recipe):
-    return [i for i in sorted_items(recipe) if i.get("is_variable")]
-
-
-def fixed_items(recipe):
-    return [i for i in sorted_items(recipe) if not i.get("is_variable")]
-
-
 def item_grams(item, quantity):
     """Grams contributed by one recipe item at `quantity` of its declared unit."""
     food = item["foods"]
@@ -61,19 +50,17 @@ def item_grams(item, quantity):
 def resolve_quantities(recipe, overrides=None):
     """Pair each item with the quantity to log.
 
-    Fixed items use recipe_items.quantity. Variable items take the caller's
-    override, falling back to the stored quantity as the default.
+    EVERY ingredient takes the caller's override, falling back to the stored
+    quantity: a double batch is two tbsp of oil as well as six eggs, and only
+    the person cooking knows that. `is_variable` no longer gates this -- it
+    just marks the ingredient the meal is named for, used for the short
+    "3 egg" label on the entry row and the tile.
     """
     overrides = overrides or {}
     resolved = []
 
     for item in sorted_items(recipe):
-        if item.get("is_variable"):
-            quantity = overrides.get(item["id"], item["quantity"])
-        else:
-            quantity = item["quantity"]
-
-        quantity = float(quantity)
+        quantity = float(overrides.get(item["id"], item["quantity"]))
         if quantity <= 0:
             raise ValueError(
                 f"{item['foods']['name']}: quantity must be greater than 0"
@@ -103,37 +90,8 @@ def log_recipe(date, recipe, overrides=None):
 
     return resolved
 
-
-def create_recipe(name, description=None, notes=None):
-    payload = {"name": name.strip().lower().replace(" ", "_")}
-    if description:
-        payload["description"] = description.strip()
-    if notes:
-        payload["notes"] = notes.strip()
-
-    response = upsert_recipe(payload)
-    return response.data[0] if response.data else None
-
-
-def add_recipe_item(recipe_id, food_id, quantity, unit="unit",
-                    is_variable=False, sort_order=0):
-    if unit not in ("unit", "g"):
-        raise ValueError("unit must be 'unit' or 'g'")
-    if quantity <= 0:
-        raise ValueError("quantity must be greater than 0")
-
-    return insert_recipe_item({
-        "recipe_id": recipe_id,
-        "food_id": food_id,
-        "quantity": quantity,
-        "unit": unit,
-        "is_variable": is_variable,
-        "sort_order": sort_order,
-    })
-
-
 def meal_quantities(recipe, rows):
-    """Current quantity of each variable ingredient, read back from the logs.
+    """Current quantity of each ingredient, read back from the logs.
 
     `rows` are that day's daily_logs rows for this recipe. Lets the edit
     dialog open showing "3 eggs" rather than "165 g".
@@ -142,8 +100,6 @@ def meal_quantities(recipe, rows):
     quantities = {}
 
     for item in sorted_items(recipe):
-        if not item.get("is_variable"):
-            continue
         grams = grams_by_food.get(item["food_id"])
         if grams is None:
             quantities[item["id"]] = float(item["quantity"])

@@ -14,7 +14,7 @@ import streamlit as st
 from services import cache
 from services.logs import add_log
 from services.recipes import item_grams, log_recipe, sorted_items
-from ui.nutrition_preview import pretty, show_preview, unit_label
+from ui.nutrition_preview import pretty, show_preview, unit_label, unit_step
 
 COLUMNS = 2
 TARGET_KEY = "quick_log_target"
@@ -27,6 +27,19 @@ def load_suggestions(day, limit=None):
 def refresh():
     """Call after any write: drops every cached read, not just this grid."""
     cache.clear()
+
+
+def refresh_button(key="refresh_data"):
+    """Pull in changes made outside the app.
+
+    Reads are cached, and a row edited straight in Supabase cannot announce
+    itself -- without this the screen quietly disagrees with the database
+    until the TTL lapses.
+    """
+    if st.button("Refresh from database", use_container_width=True, key=key):
+        refresh()
+        st.toast("Reloaded from the database", icon="🔄")
+        st.rerun()
 
 
 @st.fragment
@@ -61,10 +74,18 @@ def render_quick_log(selected_date, limit=None):
                 _render_tile(item, selected_date)
 
     # Opening the dialog is deferred to after the grid is drawn, so the tile
-    # that was tapped is still rendered behind the modal.
+    # that was tapped is still rendered behind the modal. Only the identity is
+    # held: looking the item up again each run means an open dialog shows the
+    # food as it IS, not as it was when the tile was tapped.
     target = st.session_state.get(TARGET_KEY)
     if target is not None:
-        _open_dialog(target, selected_date)
+        item = next(
+            (i for i in items if (i["kind"], i["id"]) == tuple(target)), None
+        )
+        if item is None:
+            _close()
+        else:
+            _open_dialog(item, selected_date)
 
 
 def _render_tile(item, selected_date):
@@ -81,7 +102,7 @@ def _render_tile(item, selected_date):
             if item["times"] else f"Log {amount}{suffix}"
         ),
     ):
-        st.session_state[TARGET_KEY] = item
+        st.session_state[TARGET_KEY] = (item["kind"], item["id"])
 
 
 def _close():
@@ -106,28 +127,23 @@ def _recipe_body(item, selected_date):
 
     overrides = {}
     parts = []
-    automatic = []
     invalid = False
 
+    # Every ingredient is askable: cooking two omelettes at once means two
+    # tbsp of oil, and nothing but the person at the pan knows that.
     for ri in sorted_items(recipe):
         food = ri["foods"]
         unit = "g" if ri["unit"] == "g" else unit_label(food.get("unit_name"))
 
-        if ri.get("is_variable"):
-            default = float(previous.get(ri["id"], ri["quantity"]))
-            quantity = st.number_input(
-                f"How many {unit}s?",
-                min_value=0.0,
-                value=default,
-                step=1.0 if ri["unit"] == "unit" else 10.0,
-                key=f"dlg_item_{ri['id']}",
-            )
-            overrides[ri["id"]] = quantity
-        else:
-            quantity = float(ri["quantity"])
+        quantity = st.number_input(
+            f"{pretty(food['name'])} ({unit})",
+            min_value=0.0,
+            value=float(previous.get(ri["id"], ri["quantity"])),
+            step=1.0 if ri["unit"] == "unit" else 10.0,
+            key=f"dlg_item_{ri['id']}",
+        )
+        overrides[ri["id"]] = quantity
 
-        # A zero on any ingredient means the meal is not loggable as entered;
-        # the fixed ingredients alone must not keep the button enabled.
         if quantity <= 0:
             invalid = True
             continue
@@ -139,11 +155,6 @@ def _recipe_body(item, selected_date):
             return
 
         parts.append((food, grams))
-        if not ri.get("is_variable"):
-            automatic.append(f"{quantity:g} {unit} {pretty(food['name'])}")
-
-    if automatic:
-        st.caption("Included automatically: " + " · ".join(automatic))
 
     if parts:
         show_preview(parts, compact=True)
@@ -178,8 +189,8 @@ def _food_body(item, selected_date):
             f"How many {unit}s?",
             min_value=0.0,
             value=float(item["default_quantity"]),
-            step=1.0,
-            key=f"dlg_units_{item['id']}",
+            step=unit_step(grams_per_unit),
+            key=f"dlg_units_{item['id']}_{unit}",
         )
         grams = None
         effective = quantity * float(grams_per_unit)
@@ -215,4 +226,6 @@ def _actions(disabled, on_log, label):
 
     if col2.button("Cancel", use_container_width=True, key="dlg_cancel"):
         _close()
-        st.rerun(scope="fragment")
+        # App scope, not fragment: a dialog belongs to the page, so a
+        # fragment-scoped rerun drops the target but leaves the modal open.
+        st.rerun()
