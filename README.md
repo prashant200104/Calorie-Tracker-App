@@ -44,6 +44,8 @@ analytics/totals.py    pandas aggregation: daily totals, detailed logs, weekly
 ui/dashboard.py        main screen: two action buttons, date picker, 3 tables + line chart
 ui/log_food.py         log a food by grams or by units
 ui/add_food.py         create a new food (per-100g nutrition)
+ui/weekly_chart.py     last 7 days: calorie bars vs goal + a separate macro grams chart
+ui/weekly_report.py    last 7 days as plain text + a JS copy-to-clipboard button
 ```
 
 ## Data model (Supabase)

@@ -2,6 +2,7 @@ from db.queries import (
     delete_log,
     delete_logs_for_recipe,
     get_log,
+    get_logs_between,
     get_logs_for_date,
     insert_log,
     update_log,
@@ -57,6 +58,11 @@ def calculate_grams(food, quantity=None, grams=None):
 
 def list_logs_for_date(day):
     return get_logs_for_date(day).data or []
+
+
+def list_logs_between(start_day, end_day):
+    """Every log from start_day to end_day, inclusive."""
+    return get_logs_between(start_day, end_day).data or []
 
 
 def set_log_grams(log_id, grams):

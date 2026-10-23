@@ -11,6 +11,8 @@ from ui.log_food import render_log_food
 from ui.quick_log import render_quick_log
 from ui.settings import render_settings
 from ui.theme import day_hero, inject, nutrient_chips, section
+from ui.weekly_chart import render_weekly_charts
+from ui.weekly_report import render_copy_last_7_days
 
 NAV_KEY = "nav_section"
 SHOW_FULL_FORM = "show_full_form"
@@ -111,9 +113,8 @@ def render_day(selected_date, daily_df):
         if weekly_df.empty:
             st.caption("No data in the last 7 days.")
         else:
-            st.line_chart(
-                weekly_df.set_index("date")[["calories", "protein", "carbs", "fat"]]
-            )
+            render_weekly_charts(weekly_df)
+        render_copy_last_7_days()
 
 
 def _format_target_amount(value):

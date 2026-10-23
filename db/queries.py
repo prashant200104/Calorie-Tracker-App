@@ -90,6 +90,15 @@ def get_logs_for_date(day):
         .eq("date", day.isoformat()) \
         .execute()
 
+def get_logs_between(start_date, end_date):
+    """Full rows for an inclusive date range, filtered DB-side."""
+    return supabase.table("daily_logs") \
+        .select("id, date, grams, food_id, recipe_id, foods(*), recipes(name)") \
+        .gte("date", start_date.isoformat()) \
+        .lte("date", end_date.isoformat()) \
+        .order("date") \
+        .execute()
+
 def delete_log(log_id):
     return supabase.table("daily_logs").delete().eq("id", log_id).execute()
 
