@@ -5,6 +5,7 @@ import streamlit as st
 
 from db.nutrients import COLUMN, FOOD_ATTRIBUTES, GROUPS, KEYS_IN_GROUP, LABEL, UNIT
 from services.foods import add_food
+from ui.quick_log import refresh
 
 
 def _nutrient_inputs(keys, cols_per_row=3):
@@ -125,6 +126,7 @@ def render_add_food():
 
         try:
             add_food(food)
+            refresh()  # the new food must show up in the grid picker
             nutrient_count = len(values) + len(food_attributes)
             nutrient_count += int("amino_acids_mg_per_100g" in food)
             st.success(f"Added {food['name']} with {nutrient_count} nutrient values")

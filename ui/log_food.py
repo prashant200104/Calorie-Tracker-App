@@ -2,14 +2,9 @@ from datetime import date
 
 import streamlit as st
 
-from services.foods import list_foods
+from services import cache
 from services.logs import add_log
-from services.recipes import (
-    item_grams,
-    list_recipes_with_items,
-    log_recipe,
-    sorted_items,
-)
+from services.recipes import item_grams, log_recipe, sorted_items
 from ui.nutrition_preview import PREVIEW_KEYS, pretty, show_preview
 from ui.quick_log import load_suggestions, refresh
 
@@ -30,7 +25,7 @@ def show_notes(row):
 
 
 def render_log_food(selected_date):
-    recipes = list_recipes_with_items()
+    recipes = cache.recipes_with_items()
 
     if recipes:
         tab = st.radio(
@@ -132,7 +127,7 @@ def render_meal(selected_date, recipes):
 
 # ------------------------------------------------------------- single food
 def render_single_food(selected_date):
-    foods = list_foods()
+    foods = cache.foods()
     if not foods:
         st.warning("No foods found. Run db/supabase_setup.sql first.")
         return

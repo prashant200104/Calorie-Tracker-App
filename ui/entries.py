@@ -124,7 +124,6 @@ def _render_row(entry):
     )
     if st.button(label, key=f"entry_{entry['key']}", use_container_width=True):
         st.session_state[TARGET_KEY] = entry
-        st.rerun()
 
 
 def _close():
@@ -140,7 +139,7 @@ def _apply(action, message):
     _close()
     refresh()
     st.toast(message, icon="✅")
-    st.rerun()
+    st.rerun(scope="app")
 
 
 # ------------------------------------------------------------------- popup

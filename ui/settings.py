@@ -6,9 +6,8 @@ single thumb-reachable surface.
 
 import streamlit as st
 
-from services.foods import list_foods
-from services.picks import list_picks, pick_food, pick_recipe, unpick
-from services.recipes import list_recipes
+from services import cache
+from services.picks import pick_food, pick_recipe, unpick
 from ui.add_food import render_add_food
 from ui.nutrition_preview import pretty
 from ui.quick_log import refresh
@@ -35,9 +34,9 @@ def render_grid_picker():
     )
 
     try:
-        picks = list_picks()
-        foods = list_foods()
-        recipes = list_recipes()
+        picks = cache.picks()
+        foods = cache.foods()
+        recipes = cache.recipes()
     except Exception as e:
         if "quick_picks" in str(e):
             st.info(

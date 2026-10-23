@@ -38,9 +38,10 @@ db/connection.py       creates the module-level `supabase` client
 db/queries.py          all raw Supabase table calls (foods, daily_logs)
 db/seed_food.py        COMMON_FOODS list (~22 Indian/fitness staples) + seed()
 db/backup.py           empty placeholder
+services/cache.py      every read, memoised per session; cache.clear() after writes
 services/foods.py      list_foods(), add_food()
 services/logs.py       add_log() — upserts: if a log exists for (date, food_id), adds grams to it
-analytics/totals.py    pandas aggregation: daily totals, detailed logs, weekly
+analytics/totals.py    sums nutrients over rows the caller already fetched
 ui/dashboard.py        main screen: two action buttons, date picker, 3 tables + line chart
 ui/log_food.py         log a food by grams or by units
 ui/add_food.py         create a new food (per-100g nutrition)
@@ -74,8 +75,14 @@ the buttons stay visible on top. Page-level sidebar nav in `app.py` is commented
 
 ## Known quirks / gotchas
 
-- **No DB-side date filtering.** `analytics/totals.py` pulls *every* log via `get_logs_with_foods()`
-  then filters in pandas (`get_daily_totals_for_date`, `get_weekly_totals`). Fine now, will not scale.
+- **Reads are cached, writes clear the cache.** Every UI read goes through
+  [services/cache.py](services/cache.py); `refresh()` (`ui/quick_log.py`) calls `cache.clear()` and must
+  follow *any* write, or the screen shows stale data for up to the TTL.
+- **Fragments.** The date bar, quick-log grid, entry list and the "Last 7 days" section are
+  `@st.fragment`s, so tapping within one re-runs only that block. A write inside a fragment calls
+  `st.rerun(scope="app")`, because the hero and the entry list have to catch up.
+- **"Last 7 days" is lazy.** An expander body runs even while collapsed, so that section is behind a
+  `st.toggle` instead -- its charts and report only cost a query once opened.
 - **`add_food.py` never collects `grams_per_unit`**, so foods created in the UI can only be logged
   by grams — "Units" mode shows a warning for them. Only seeded foods have units.
 - **Dead code:** `insert_log_safe()` in [db/queries.py](db/queries.py) is unused (`add_log` uses `insert_log`),

@@ -65,11 +65,6 @@ def delete_recipe(recipe_id):
 def insert_log(log: dict):
     return supabase.table("daily_logs").insert(log).execute()
 
-def get_logs_with_foods():
-    return supabase.table("daily_logs") \
-        .select("date, grams, recipe_id, foods(*)") \
-        .execute()
-
 def get_recent_logs(since_date, limit=2000):
     """Logs since `since_date`, newest first, for ranking quick-log suggestions.
 

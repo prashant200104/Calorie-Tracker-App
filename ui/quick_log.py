@@ -11,26 +11,29 @@ from datetime import date
 
 import streamlit as st
 
+from services import cache
 from services.logs import add_log
 from services.recipes import item_grams, log_recipe, sorted_items
-from services.suggestions import build_suggestions
 from ui.nutrition_preview import pretty, show_preview
 
 COLUMNS = 2
 TARGET_KEY = "quick_log_target"
 
 
-@st.cache_data(ttl=120, show_spinner=False)
 def load_suggestions(day, limit=None):
-    return build_suggestions(today=day, limit=limit)
+    return cache.suggestions(day, limit)
 
 
 def refresh():
-    """Call after any write, so the grid re-ranks on the next render."""
-    load_suggestions.clear()
+    """Call after any write: drops every cached read, not just this grid."""
+    cache.clear()
 
 
+@st.fragment
 def render_quick_log(selected_date, limit=None):
+    """A fragment: tapping a tile and working the dialog reruns the grid
+    alone. Only an actual write reruns the page, to refresh the hero and
+    the entry list."""
     try:
         suggestions = load_suggestions(date.today(), limit)
     except Exception as e:
@@ -79,7 +82,6 @@ def _render_tile(item, selected_date):
         ),
     ):
         st.session_state[TARGET_KEY] = item
-        st.rerun()
 
 
 def _close():
@@ -209,8 +211,8 @@ def _actions(disabled, on_log, label):
         _close()
         refresh()
         st.toast(f"Logged {label}", icon="✅")
-        st.rerun()
+        st.rerun(scope="app")
 
     if col2.button("Cancel", use_container_width=True, key="dlg_cancel"):
         _close()
-        st.rerun()
+        st.rerun(scope="fragment")

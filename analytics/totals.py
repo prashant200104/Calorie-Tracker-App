@@ -1,9 +1,17 @@
+"""Nutrient sums over logged rows.
+
+These used to pull EVERY log ever written (`get_logs_with_foods`) and filter
+in pandas -- twice per render, since the day totals and the week chart each
+did their own scan. Now a caller fetches the rows it needs once, date-bounded
+and cached, and these functions only do arithmetic.
+"""
+
 from datetime import timedelta
 
 import pandas as pd
 
 from db.nutrients import COLUMN, KEYS
-from db.queries import get_logs_with_foods
+from services.cache import logs_between
 
 
 def _nutrient_values(food, factor):
@@ -15,82 +23,68 @@ def _nutrient_values(food, factor):
     return {key: factor * (food.get(COLUMN[key]) or 0) for key in KEYS}
 
 
-def _log_rows(include_food_name):
-    response = get_logs_with_foods()
-    data = response.data
+def _usable(log):
+    """(date, grams, food) for a log row, or None if it can't be counted."""
+    food = log.get("foods")
+    date_val = log.get("date")
+    if not food or not date_val:
+        return None
 
-    if not data:
-        return []
+    try:
+        grams = float(log.get("grams", 0))
+    except (TypeError, ValueError):
+        return None
 
-    rows = []
+    if grams <= 0:
+        return None
 
-    for log in data:
-        food = log.get("foods")
-        if not food:
+    return pd.to_datetime(date_val).date(), grams, food
+
+
+def totals_for_rows(rows):
+    """Sum one day's (or any set of) log rows: {nutrient key: amount}.
+
+    Returns {} for nothing logged, so callers can test it directly.
+    """
+    totals = {key: 0.0 for key in KEYS}
+    counted = 0
+
+    for log in rows or []:
+        usable = _usable(log)
+        if usable is None:
             continue
+        _date, grams, food = usable
+        for key, value in _nutrient_values(food, grams / 100.0).items():
+            totals[key] += value
+        counted += 1
 
-        date_val = log.get("date")
-        if not date_val:
+    return totals if counted else {}
+
+
+def daily_totals_frame(rows):
+    """One row per logged day, every nutrient summed -- for the week charts."""
+    records = []
+    for log in rows or []:
+        usable = _usable(log)
+        if usable is None:
             continue
-        date_val = pd.to_datetime(date_val).date()
+        date_val, grams, food = usable
+        record = {"date": date_val}
+        record.update(_nutrient_values(food, grams / 100.0))
+        records.append(record)
 
-        try:
-            grams = float(log.get("grams", 0))
-        except (TypeError, ValueError):
-            continue
-
-        if grams <= 0:
-            continue
-
-        row = {"date": date_val}
-        if include_food_name:
-            row["food"] = food["name"]
-            row["grams"] = grams
-        row.update(_nutrient_values(food, grams / 100.0))
-        rows.append(row)
-
-    return rows
-
-
-def get_daily_totals():
-    rows = _log_rows(include_food_name=False)
-    if not rows:
+    if not records:
         return pd.DataFrame()
 
-    df = pd.DataFrame(rows)
     return (
-        df.groupby("date", as_index=False)
+        pd.DataFrame(records)
+          .groupby("date", as_index=False)
           .sum()
           .sort_values("date")
     )
 
 
-def get_detailed_logs():
-    rows = _log_rows(include_food_name=True)
-    if not rows:
-        return pd.DataFrame()
-
-    return pd.DataFrame(rows).sort_values(["date", "food"])
-
-
-def get_daily_totals_for_date(target_date):
-    df = get_daily_totals()
-    if df.empty:
-        return df
-    return df[df["date"] == target_date]
-
-
-def get_detailed_logs_for_date(target_date):
-    df = get_detailed_logs()
-    if df.empty:
-        return df
-    return df[df["date"] == target_date]
-
-
-def get_weekly_totals(end_date):
-    df = get_daily_totals()
-    if df.empty:
-        return df
-
-    start_date = end_date - timedelta(days=6)
-    return df[(df["date"] >= start_date) & (df["date"] <= end_date)]
+def get_weekly_totals(end_date, days=7):
+    """Daily totals for the `days`-day window ending on end_date."""
+    start_date = end_date - timedelta(days=days - 1)
+    return daily_totals_frame(logs_between(start_date, end_date))

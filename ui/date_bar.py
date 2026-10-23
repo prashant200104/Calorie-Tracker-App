@@ -22,7 +22,11 @@ def set_active_date(value):
     st.session_state[DATE_KEY] = value
 
 
+@st.fragment
 def render_date_bar():
+    """A fragment: opening or closing the picker reruns this bar alone.
+    Actually changing the date reruns the app, because the whole screen is
+    about that day."""
     today = date.today()
     active = get_active_date()
     is_today = active == today
@@ -39,7 +43,7 @@ def render_date_bar():
         if st.button("Today", type="primary", use_container_width=True):
             set_active_date(today)
             st.session_state[PICKER_KEY] = False
-            st.rerun()
+            st.rerun(scope="app")
 
     if st.session_state.get(PICKER_KEY):
         picked = st.date_input(
@@ -51,6 +55,4 @@ def render_date_bar():
         if picked != active:
             set_active_date(picked)
             st.session_state[PICKER_KEY] = False
-            st.rerun()
-
-    return st.session_state[DATE_KEY]
+            st.rerun(scope="app")

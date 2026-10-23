@@ -12,8 +12,7 @@ from datetime import date, timedelta
 import streamlit as st
 import streamlit.components.v1 as components
 
-from services.logs import list_logs_between
-from services.recipes import list_recipes_with_items
+from services import cache
 from ui.entries import build_entries
 from ui.nutrition_preview import pretty
 
@@ -57,8 +56,8 @@ def _window():
 def build_report():
     """The text itself. Returns None when nothing was logged in the window."""
     start, end = _window()
-    rows = list_logs_between(start, end)
-    recipes_by_id = {r["id"]: r for r in list_recipes_with_items()}
+    rows = cache.logs_between(start, end)
+    recipes_by_id = {r["id"]: r for r in cache.recipes_with_items()}
 
     by_day = {}
     for row in rows:

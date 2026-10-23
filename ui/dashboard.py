@@ -1,11 +1,10 @@
 import streamlit as st
 
-from analytics.totals import get_daily_totals_for_date, get_weekly_totals
+from analytics.totals import get_weekly_totals, totals_for_rows
 from analytics.targets import compare_daily_targets
 from db.nutrients import GROUPS, KEYS_IN_GROUP
-from services.logs import list_logs_for_date
-from services.recipes import list_recipes_with_items
-from ui.date_bar import render_date_bar
+from services import cache
+from ui.date_bar import get_active_date, render_date_bar
 from ui.entries import build_entries, render_entries
 from ui.log_food import render_log_food
 from ui.quick_log import render_quick_log
@@ -16,6 +15,7 @@ from ui.weekly_report import render_copy_last_7_days
 
 NAV_KEY = "nav_section"
 SHOW_FULL_FORM = "show_full_form"
+WEEK_OPEN = "week_open"
 
 
 def render_dashboard():
@@ -27,7 +27,7 @@ def render_dashboard():
     with st.container(key="ctheader"):
         date_column, nav_column = st.columns([0.95, 1.05], vertical_alignment="center")
         with date_column:
-            selected_date = render_date_bar()
+            render_date_bar()
         with nav_column:
             log_column, settings_column = st.columns(2, gap="small")
             if log_column.button(
@@ -51,7 +51,7 @@ def render_dashboard():
         render_settings()
         return
 
-    render_log_section(selected_date)
+    render_log_section(get_active_date())
 
 
 def render_log_section(selected_date):
@@ -62,14 +62,17 @@ def render_log_section(selected_date):
         render_log_food(selected_date)
         return
 
+    # One fetch for the whole screen: the hero, the entry list and the target
+    # table are three views of the same day's rows.
     try:
-        daily_df = get_daily_totals_for_date(selected_date)
+        rows = cache.logs_for_date(selected_date)
     except Exception as e:
-        st.warning(f"Couldn't load totals: {e}")
-        daily_df = None
+        st.warning(f"Couldn't load the day: {e}")
+        rows = []
 
-    if daily_df is not None and not daily_df.empty:
-        day_hero(daily_df.iloc[0])
+    totals = totals_for_rows(rows)
+    if totals:
+        day_hero(totals)
 
     with st.container(key="ctgrid"):
         render_quick_log(selected_date)
@@ -78,43 +81,61 @@ def render_log_section(selected_date):
         st.session_state[SHOW_FULL_FORM] = True
         st.rerun()
 
-    render_day(selected_date, daily_df)
+    render_day(selected_date, rows, totals)
 
 
-def render_day(selected_date, daily_df):
+def render_day(selected_date, rows, totals):
     try:
-        rows = list_logs_for_date(selected_date)
-        recipes_by_id = {r["id"]: r for r in list_recipes_with_items()}
+        recipes_by_id = {r["id"]: r for r in cache.recipes_with_items()}
     except Exception as e:
-        st.warning(f"Couldn't load entries: {e}")
+        st.warning(f"Couldn't load meals: {e}")
         return
 
-    entries = build_entries(rows, recipes_by_id)
+    render_entry_list(selected_date, rows, recipes_by_id)
+    render_target_comparison(rows)
 
+    if totals:
+        with st.expander("All nutrients"):
+            for group in GROUPS:
+                keys = [k for k in KEYS_IN_GROUP[group] if totals.get(k)]
+                if keys:
+                    section(group)
+                    nutrient_chips(totals, keys)
+
+    render_week_section(selected_date)
+
+
+@st.fragment
+def render_entry_list(selected_date, rows, recipes_by_id):
+    """Its own fragment: opening an entry or editing it reruns this list
+    alone, not the whole page."""
+    entries = build_entries(rows, recipes_by_id)
     with st.expander(f"What I ate ({len(entries)})"):
         render_entries(selected_date, entries)
 
-    render_target_comparison(rows)
 
-    if daily_df is None or daily_df.empty:
+@st.fragment
+def render_week_section(selected_date):
+    """Charts and the 7-day text are the most expensive things on the screen,
+    so they are built only once opened -- an expander body runs even while it
+    is collapsed, which is why they used to cost a query on every tap."""
+    # A toggle, not a button: its value is the state, so flipping it redraws
+    # this fragment with no rerun call and no stale label.
+    if not st.toggle("Last 7 days", key=WEEK_OPEN):
         return
 
-    totals = daily_df.iloc[0]
-
-    with st.expander("All nutrients"):
-        for group in GROUPS:
-            keys = [k for k in KEYS_IN_GROUP[group] if totals.get(k)]
-            if keys:
-                section(group)
-                nutrient_chips(totals, keys)
-
-    with st.expander("Last 7 days"):
+    try:
         weekly_df = get_weekly_totals(selected_date)
-        if weekly_df.empty:
-            st.caption("No data in the last 7 days.")
-        else:
-            render_weekly_charts(weekly_df)
-        render_copy_last_7_days()
+    except Exception as e:
+        st.warning(f"Couldn't load the week: {e}")
+        return
+
+    if weekly_df.empty:
+        st.caption("No data in the last 7 days.")
+    else:
+        render_weekly_charts(weekly_df)
+
+    render_copy_last_7_days()
 
 
 def _format_target_amount(value):
