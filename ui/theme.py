@@ -1,9 +1,12 @@
 """Visual layer: one place for colour, spacing and the HTML fragments.
 
 Streamlit's defaults are plain, so the app injects a stylesheet once per run
-and renders the richer pieces (day hero, nutrient chips) as HTML. Colours are
-defined as custom properties and redefined for dark mode, so the app follows
-whatever theme the phone is in.
+and renders the richer pieces (day hero, nutrient chips) as HTML.
+
+Surfaces (cards, hairlines, muted text) are mixed from the inherited text
+colour rather than chosen per mode, so they are legible on whatever background
+Streamlit paints and there is no second opinion about light vs dark to get
+wrong. Nutrient hues are fixed: they read on either background.
 
 Nutrient colours stay distinct in the dashboard summary: protein is emerald,
 carbs are blue, good fats are amber, bad fats are red, and fibre is teal.
@@ -33,17 +36,27 @@ CSS = """
   --ct-good-fat:#d97706;
   --ct-bad-fat: #dc2626;
   --ct-fiber:   #0e7490;
-  --ct-card:    rgba(255,255,255,0.72);
-  --ct-border:  rgba(15,23,42,0.10);
+  /* Fallback for a browser without color-mix; overridden just below. */
+  --ct-card:    rgba(15,23,42,0.04);
+  --ct-border:  rgba(15,23,42,0.14);
   --ct-muted:   rgba(15,23,42,0.58);
   --ct-shadow:  0 1px 2px rgba(15,23,42,0.06), 0 4px 12px rgba(15,23,42,0.05);
 }
-@media (prefers-color-scheme: dark) {
+
+/* Surfaces are mixed from the INHERITED TEXT COLOUR, never from a guess at
+   which mode we are in.
+
+   This used to switch on prefers-color-scheme, i.e. on the phone's setting --
+   but the page is painted by Streamlit, which picks its own theme. Whenever
+   the two disagreed, dark tokens landed on a light page: borders became
+   white-on-white and muted captions vanished.
+   Deriving from currentColor cannot disagree with anything. Light page, dark
+   text -> dark hairlines. Dark page, light text -> light hairlines. */
+@supports (color: color-mix(in srgb, currentColor 50%, transparent)) {
   :root {
-    --ct-card:   rgba(255,255,255,0.045);
-    --ct-border: rgba(255,255,255,0.10);
-    --ct-muted:  rgba(255,255,255,0.60);
-    --ct-shadow: none;
+    --ct-card:   color-mix(in srgb, currentColor 5%, transparent);
+    --ct-border: color-mix(in srgb, currentColor 16%, transparent);
+    --ct-muted:  color-mix(in srgb, currentColor 62%, transparent);
   }
 }
 
