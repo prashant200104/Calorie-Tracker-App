@@ -54,8 +54,8 @@ ui/dashboard.py        main screen: two action buttons, date picker, 3 tables + 
 ui/log_food.py         log a food by grams or by units
 ui/add_food.py         add a food: paste JSON from an LLM, or type it by hand
 ui/clipboard.py        the copy-to-clipboard button (its own iframe)
-ui/weekly_chart.py     last 7 days: calorie bars vs goal + a separate macro grams chart
-ui/weekly_report.py    last 7 days as plain text + a JS copy-to-clipboard button
+ui/weekly_chart.py     history charts: calories vs goal + a separate macro grams chart
+ui/weekly_report.py    a window of days as LLM-readable text + a copy-to-clipboard button
 ```
 
 ## Data model (Supabase)
@@ -92,8 +92,9 @@ the buttons stay visible on top. Page-level sidebar nav in `app.py` is commented
 - **Fragments.** The date bar, quick-log grid, entry list and the "Last 7 days" section are
   `@st.fragment`s, so tapping within one re-runs only that block. A write inside a fragment calls
   `st.rerun(scope="app")`, because the hero and the entry list have to catch up.
-- **"Last 7 days" is lazy.** An expander body runs even while collapsed, so that section is behind a
-  `st.toggle` instead -- its charts and report only cost a query once opened.
+- **History is lazy.** An expander body runs even while collapsed, so "Last 7 days" / "Last 30 days"
+  are buttons instead: nothing is fetched or drawn until a window is picked, and tapping the open
+  one closes it. Past a fortnight the charts thin their day labels and shrink their points.
 - **Added sugar needs an explicit 0.** `_nutrient_inputs` records only values > 0 ("0 means not
   known"), but 0 is the TRUE value for milk, fruit and nuts. The form now writes an explicit 0
   unless "Added sugar not known" is ticked; [db/migrations/009_fix_added_sugar.sql](db/migrations/009_fix_added_sugar.sql)

@@ -1,4 +1,4 @@
-"""Last 7 days as one block of plain text, with a button that copies it.
+"""A window of days as one block of plain text, with a button that copies it.
 
 The text is shaped for a language model to read, not for a person to admire:
 a header that states the units and what each column means, then one
@@ -6,7 +6,9 @@ pipe-delimited line per item in a fixed field order, ISO dates, and the daily
 targets so the model can judge the numbers instead of asking for them. It
 stays legible to a human, which is all a paste into a chat needs.
 
-The window always ends today, whatever date the rest of the screen shows.
+The window always ends today, whatever date the rest of the screen shows, and
+is as long as the caller asks -- a week to paste into a chat, a month to ask
+what a stretch of eating adds up to.
 """
 
 from datetime import date, timedelta
@@ -18,8 +20,6 @@ from services import cache
 from ui.clipboard import copy_button
 from ui.entries import build_entries
 from ui.nutrition_preview import pretty
-
-DAYS = 7
 
 # key, column name in the output, decimals. The order IS the field order of
 # every item, total and average line, so it is declared once in the header.
@@ -74,14 +74,14 @@ def _targets_line():
     return " | ".join(parts)
 
 
-def _window():
+def _window(days):
     end = date.today()
-    return end - timedelta(days=DAYS - 1), end
+    return end - timedelta(days=days - 1), end
 
 
-def build_report():
+def build_report(days=7):
     """The text itself. Returns None when nothing was logged in the window."""
-    start, end = _window()
+    start, end = _window(days)
     rows = cache.logs_between(start, end)
     recipes_by_id = {r["id"]: r for r in cache.recipes_with_items()}
 
@@ -93,7 +93,7 @@ def build_report():
     days_with_food = 0
 
     lines = [
-        f"# Food log — {start.isoformat()} to {end.isoformat()} (last {DAYS} days)",
+        f"# Food log — {start.isoformat()} to {end.isoformat()} (last {days} days)",
         "",
         "Energy in kcal, everything else in grams, per portion actually eaten.",
         "sugar_g is TOTAL sugar; added_sugar_g counts only added/free sugar — "
@@ -104,7 +104,7 @@ def build_report():
         "",
     ]
 
-    for offset in range(DAYS - 1, -1, -1):
+    for offset in range(days - 1, -1, -1):
         day = end - timedelta(days=offset)
         entries = build_entries(by_day.get(day.isoformat(), []), recipes_by_id)
 
@@ -142,22 +142,22 @@ def build_report():
     average = {key: value / days_with_food for key, value in totals.items()}
     lines += [
         "## summary",
-        f"days with food logged: {days_with_food} of {DAYS}",
+        f"days with food logged: {days_with_food} of {days}",
         f"DAILY AVERAGE | — | {_values(average)}",
     ]
 
     return "\n".join(lines)
 
 
-def render_copy_last_7_days():
+def render_copy_button(days=7):
     try:
-        report = build_report()
+        report = build_report(days)
     except Exception as e:
-        st.caption(f"Couldn't build the 7-day report: {e}")
+        st.caption(f"Couldn't build the {days}-day report: {e}")
         return
 
     if report is None:
-        st.caption("Nothing logged in the last 7 days.")
+        st.caption(f"Nothing logged in the last {days} days.")
         return
 
-    copy_button(report, "Copy last 7 days")
+    copy_button(report, f"Copy last {days} days")

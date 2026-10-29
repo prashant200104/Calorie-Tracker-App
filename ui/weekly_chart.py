@@ -69,21 +69,26 @@ def _axes(chart, mode):
     )
 
 
-def _day_axis(order):
+def _day_axis(order, label_values=None):
     """Days as an ordinal band: only logged days appear, evenly spaced.
 
     Labels are the day of the month alone -- seven "Mon 17"s collide at phone
     width, and the title carries the range while the tooltip carries the date.
+    Over a month even bare numbers collide, so `label_values` thins them.
     """
     return alt.X(
         "day:O",
         title=None,
         sort=order,
-        axis=alt.Axis(labelAngle=0, tickSize=0, labelPadding=6),
+        axis=alt.Axis(
+            labelAngle=0, tickSize=0, labelPadding=6,
+            # Undefined, not None: Altair rejects a null `values`.
+            values=label_values if label_values else alt.Undefined,
+        ),
     )
 
 
-def _calorie_chart(df, order, mode, span):
+def _calorie_chart(df, order, mode, span, label_values=None, point_size=60):
     colors = SERIES[mode]
     goal = _goal("calories")
 
@@ -92,10 +97,10 @@ def _calorie_chart(df, order, mode, span):
         strokeWidth=2,
         color=colors["calories"],
         point=alt.OverlayMarkDef(
-            size=60, color=colors["calories"], fill=colors["calories"]
+            size=point_size, color=colors["calories"], fill=colors["calories"]
         ),
     ).encode(
-        x=_day_axis(order),
+        x=_day_axis(order, label_values),
         y=alt.Y("calories:Q", title=None, axis=alt.Axis(tickCount=4)),
         tooltip=[
             alt.Tooltip("date:T", title="Day", format="%a %d %b"),
@@ -127,7 +132,7 @@ def _calorie_chart(df, order, mode, span):
     )
 
 
-def _macro_chart(df, order, mode, span):
+def _macro_chart(df, order, mode, span, label_values=None, point_size=60):
     colors = SERIES[mode]
     long_df = df.melt(
         id_vars=["date", "day"], value_vars=MACRO_KEYS,
@@ -140,8 +145,10 @@ def _macro_chart(df, order, mode, span):
     color = alt.Color("macro:N", scale=scale, legend=alt.Legend(title=None))
 
     base = alt.Chart(long_df)
-    lines = base.mark_line(strokeWidth=2, point=alt.OverlayMarkDef(size=60)).encode(
-        x=_day_axis(order),
+    lines = base.mark_line(
+        strokeWidth=2, point=alt.OverlayMarkDef(size=point_size)
+    ).encode(
+        x=_day_axis(order, label_values),
         y=alt.Y("grams:Q", title=None, axis=alt.Axis(tickCount=4)),
         color=color,
         tooltip=[
@@ -156,7 +163,7 @@ def _macro_chart(df, order, mode, span):
     last_day = long_df["date"].max()
     labels = alt.Chart(long_df[long_df["date"] == last_day]).mark_text(
         align="left", baseline="middle", dx=6, fontSize=10, color=INK[mode],
-    ).encode(x=_day_axis(order), y="grams:Q", text="macro:N")
+    ).encode(x=_day_axis(order, label_values), y="grams:Q", text="macro:N")
 
     return _axes(
         alt.layer(lines, labels).properties(
@@ -168,9 +175,13 @@ def _macro_chart(df, order, mode, span):
     )
 
 
-def render_weekly_charts(weekly_df):
-    """weekly_df: one row per logged day, as analytics.totals returns it."""
-    df = weekly_df.copy()
+def render_charts(daily_df):
+    """daily_df: one row per logged day, as analytics.totals returns it.
+
+    Works for a week or a month: past a fortnight the labels thin out and the
+    point markers shrink, so a long window stays readable at phone width.
+    """
+    df = daily_df.copy()
     df["date"] = pd.to_datetime(df["date"])
     df = df.sort_values("date")
     df["day"] = df["date"].dt.strftime("%-d")
@@ -178,5 +189,17 @@ def render_weekly_charts(weekly_df):
     span = f"{df['date'].iloc[0]:%-d %b} – {df['date'].iloc[-1]:%-d %b}"
     mode = _mode()
 
-    st.altair_chart(_calorie_chart(df, order, mode, span), use_container_width=True)
-    st.altair_chart(_macro_chart(df, order, mode, span), use_container_width=True)
+    if len(order) > 14:
+        label_values = sorted(set(order[::5] + order[-1:]), key=order.index)
+        point_size = 20
+    else:
+        label_values, point_size = None, 60
+
+    st.altair_chart(
+        _calorie_chart(df, order, mode, span, label_values, point_size),
+        use_container_width=True,
+    )
+    st.altair_chart(
+        _macro_chart(df, order, mode, span, label_values, point_size),
+        use_container_width=True,
+    )

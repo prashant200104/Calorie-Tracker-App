@@ -10,12 +10,13 @@ from ui.log_food import render_log_food
 from ui.quick_log import render_quick_log
 from ui.settings import render_settings
 from ui.theme import day_hero, inject, nutrient_chips, section
-from ui.weekly_chart import render_weekly_charts
-from ui.weekly_report import render_copy_last_7_days
+from ui.weekly_chart import render_charts
+from ui.weekly_report import render_copy_button
 
 NAV_KEY = "nav_section"
 SHOW_FULL_FORM = "show_full_form"
-WEEK_OPEN = "week_open"
+HISTORY_KEY = "history_window"
+WINDOWS = (7, 30)
 
 
 def render_dashboard():
@@ -102,7 +103,7 @@ def render_day(selected_date, rows, totals):
                     section(group)
                     nutrient_chips(totals, keys)
 
-    render_week_section(selected_date)
+    render_history_section(selected_date)
 
 
 @st.fragment
@@ -115,27 +116,45 @@ def render_entry_list(selected_date, rows, recipes_by_id):
 
 
 @st.fragment
-def render_week_section(selected_date):
-    """Charts and the 7-day text are the most expensive things on the screen,
-    so they are built only once opened -- an expander body runs even while it
-    is collapsed, which is why they used to cost a query on every tap."""
-    # A toggle, not a button: its value is the state, so flipping it redraws
-    # this fragment with no rerun call and no stale label.
-    if not st.toggle("Last 7 days", key=WEEK_OPEN):
+def render_history_section(selected_date):
+    """Charts and the copy text are the most expensive things on the screen,
+    so nothing is built until a window is picked -- an expander body runs even
+    while it is collapsed, which is why this is buttons and not an expander.
+
+    Tapping the open window closes it, so the screen can be quiet again.
+    """
+    open_days = st.session_state.get(HISTORY_KEY)
+    columns = st.columns(len(WINDOWS), gap="small")
+
+    for column, days in zip(columns, WINDOWS):
+        if column.button(
+            f"Last {days} days",
+            type="primary" if open_days == days else "secondary",
+            use_container_width=True,
+            key=f"history_{days}",
+        ):
+            st.session_state[HISTORY_KEY] = None if open_days == days else days
+            # App scope on purpose: the buttons above have already drawn with
+            # the old selection, so something must redraw them, and a
+            # fragment-scoped rerun is only legal during a fragment rerun.
+            # Every read is cached, so this costs no queries.
+            st.rerun()
+
+    if not open_days:
         return
 
     try:
-        weekly_df = get_weekly_totals(selected_date)
+        daily_df = get_weekly_totals(selected_date, days=open_days)
     except Exception as e:
-        st.warning(f"Couldn't load the week: {e}")
+        st.warning(f"Couldn't load the last {open_days} days: {e}")
         return
 
-    if weekly_df.empty:
-        st.caption("No data in the last 7 days.")
+    if daily_df.empty:
+        st.caption(f"No data in the last {open_days} days.")
     else:
-        render_weekly_charts(weekly_df)
+        render_charts(daily_df)
 
-    render_copy_last_7_days()
+    render_copy_button(open_days)
 
 
 def _format_target_amount(value):
